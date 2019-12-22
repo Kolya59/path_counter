@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -53,73 +53,60 @@ func ParseFile(filename string) (n int64, k int64, fields [][]Field, err error) 
 	return
 }
 
-func CalculatePathCount(fields [][]Field, n int64, k int64) [][]Field {
-	odd := make([][]Field, n+2)
-	even := make([][]Field, n+2)
-	for i := int64(0); i < n+2; i++ {
-		odd[i] = make([]Field, n+2)
-		even[i] = make([]Field, n+2)
-	}
-	for i := int64(0); i < n+2; i++ {
-		odd[0][i] = Field{}
-		odd[i][0] = Field{}
-		odd[n+1][i] = Field{}
-		odd[i][n+1] = Field{}
-		even[0][i] = Field{}
-		even[i][0] = Field{}
-		even[n+1][i] = Field{}
-		even[i][n+1] = Field{}
-	}
-	for i := int64(1); i < n+1; i++ {
-		for j := int64(1); j < n+1; j++ {
-			odd[i][j] = fields[i-1][j-1]
-			even[i][j] = fields[i-1][j-1]
+func CalculatePathCount(fields [][]Field, n int64, k int64) int64 {
+	wrappedFields := make([][][]Field, k+1)
+	for step := int64(0); step < k+1; step++ {
+		wrappedFields[step] = make([][]Field, n+2)
+		for i := int64(0); i < n+2; i++ {
+			wrappedFields[step][i] = make([]Field, n+2)
 		}
 	}
-	odd[1][1].PathCount = 1
-	even[1][1].PathCount = 1
-
-	var isEven bool
-	for step := int64(0); step < k; step++ {
-		isEven = math.Mod(float64(step), 2) == 0
+	for step := int64(0); step < k+1; step++ {
+		for i := int64(0); i < n+2; i++ {
+			wrappedFields[step][0][i] = Field{}
+			wrappedFields[step][i][0] = Field{}
+			wrappedFields[step][n+1][i] = Field{}
+			wrappedFields[step][i][n+1] = Field{}
+		}
 		for i := int64(1); i < n+1; i++ {
 			for j := int64(1); j < n+1; j++ {
-				if odd[i][j].IsAllowed {
-					if isEven {
-						even[i][j].PathCount += odd[i-1][j].PathCount +
-							odd[i+1][j].PathCount +
-							odd[i][j+1].PathCount +
-							odd[i][j-1].PathCount
-						continue
-					}
-					odd[i][j].PathCount += even[i-1][j].PathCount +
-						even[i+1][j].PathCount +
-						even[i][j+1].PathCount +
-						even[i][j-1].PathCount
-				}
+				wrappedFields[step][i][j] = fields[i-1][j-1]
 			}
 		}
 	}
+	wrappedFields[0][1][1].PathCount = 1
 
-	if isEven {
-		return even
+	for step := int64(1); step < k+1; step++ {
+		for i := int64(1); i < n+1; i++ {
+			for j := int64(1); j < n+1; j++ {
+				if wrappedFields[step][i][j].IsAllowed {
+					wrappedFields[step][i][j].PathCount +=
+						wrappedFields[step-1][i-1][j].PathCount +
+							wrappedFields[step-1][i+1][j].PathCount +
+							wrappedFields[step-1][i][j+1].PathCount +
+							wrappedFields[step-1][i][j-1].PathCount
+				}
+			}
+		}
+		printedPathField := fmt.Sprintf("Step: %v\n", step)
+		for i := int64(0); i < n+2; i++ {
+			for j := int64(0); j < n+2; j++ {
+				printedPathField += fmt.Sprintf("%v ", wrappedFields[step][i][j].PathCount)
+			}
+			printedPathField += "\n"
+		}
+		log.Printf("%s\n", printedPathField)
+
 	}
-	return odd
+
+	return wrappedFields[k][n][n].PathCount
 }
 
 func main() {
-	n, k, fields, err := ParseFile("input")
+	n, k, fields, err := ParseFile(filepath.Base("./input"))
 	if err != nil {
 		log.Fatalf("Failed to parse file: %v", err)
 	}
 	r := CalculatePathCount(fields, n, k)
-
-	printedPathField := ""
-	for i := int64(0); i < n+2; i++ {
-		for j := int64(0); j < n+2; j++ {
-			printedPathField += fmt.Sprintf("%v ", r[i][j].PathCount)
-		}
-		printedPathField += "\n"
-	}
-	log.Printf("\n%s\nResult is: %v", printedPathField, r[n][n].PathCount)
+	log.Printf("Result is: %v", r)
 }
